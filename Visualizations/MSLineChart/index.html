@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<meta charset="utf-8">
+<style>
+
+body {
+  font: 10px sans-serif;
+}
+
+.axis path,
+.axis line {
+  fill: none;
+  stroke: #000;
+  shape-rendering: crispEdges;
+}
+
+.line {
+  fill: none;
+  stroke: steelblue;
+  stroke-width: 1.5px;
+}
+
+
+</style>
+
+<header>
+<h1>2010-2017 Fund Category Multi-Series Line Chart</h1>
+</header>
+
+<body>
+<script src="//d3js.org/d3.v3.min.js"></script>
+<script>
+
+var margin = {top: 20, right: 80, bottom: 30, left: 50},
+    width = 960 - margin.left - margin.right,
+    height = 500 - margin.top - margin.bottom;
+
+var numForm = d3.format("$0,000,000,000");
+
+var x = d3.scale.linear()
+    .range([0, width]);
+
+var y = d3.scale.linear()
+    .range([height, 0]);
+
+var color = d3.scale.category20();
+// var color = d3.scale.ordinal()
+// //'#d62728', '#9467bd', '#1f77b4', '#ff7f0e', '#2ca02c']
+
+//     .range(['#2ca02c', '#ff7f0e', '#9467bd','#d62728', '#1f77b4']);
+
+var getColor=function(fundCategory){
+        if(fundCategory==="Operating"){
+          return "#1f77b4";
+        }
+        if(fundCategory==="Continuing Projects"){
+          return "#ffbb78";
+        }
+        if(fundCategory==="Work Orders/Overhead"){
+          return "#2ca02c";
+        }
+        if(fundCategory==="Grants"){
+          return "#ff7f0e"
+        }
+        if(fundCategory==="Annual Projects"){
+          return "#aec7e8";
+        }
+}
+
+
+var xAxis = d3.svg.axis()
+    .scale(x)
+    .tickFormat(d3.format("d"))
+    .orient("bottom");
+
+var yAxis = d3.svg.axis()
+    .scale(y)
+    //.tickFormat(d3.format("s"))
+    .tickFormat(function (d) {
+      if ((d / 1000000000) >= 1) {
+        d = d / 1000000000 + "B";
+      }
+      return d;
+    })
+    .orient("left");
+
+var line = d3.svg.line()
+    .interpolate("basis")
+    .x(function(d) { return x(d.key); })
+    .y(function(d) { return y(d.values); });
+
+var svg = d3.select("body").append("svg")
+    .attr("width", width + margin.left + margin.right)
+    .attr("height", height + margin.top + margin.bottom)
+  .append("g")
+    .attr("id","plot")
+    .attr("transform", "translate(" + margin.left + "," + margin.top + ")");
+
+
+d3.csv("data.csv", function(error, data) {
+    if (error) throw error;
+
+    data.forEach(function(d){
+      if (d["Fiscal Year"] == "2010") {
+        d["Amount"] = Math.round(1.09 * d["Amount"]);
+      } 
+      if (d["Fiscal Year"] == "2011") {
+        d["Amount"] = Math.round(1.05 * d["Amount"]);
+      }
+      if (d["Fiscal Year"] == "2012") {
+        d["Amount"] = Math.round(1.03 * d["Amount"]);
+      }
+      if (d["Fiscal Year"] == "2013") {
+        d["Amount"] = Math.round(1.02 * d["Amount"]);
+      }
+      if (d["Fiscal Year"] == "2014") {
+        d["Amount"] = Math.round(1* d["Amount"]);
+      }
+      if (d["Fiscal Year"] == "2015") {
+        d["Amount"] = Math.round(1* d["Amount"]);
+      }
+    })
+
+    var filteredData = {},
+    data = data.filter(function(d) { 
+      if (d["Revenue or Spending"] == "Spending" && d["Fund Category"] != "" && d["Amount"] > 0) { return d; } })
+    console.log(data);
+
+    var total = d3.nest()
+      .key(function(d) { return d["Fund Category"]; })
+      .key(function(d) { return d["Fiscal Year"]; })
+      .rollup(function(values) {
+        return d3.sum(values, function(d) {
+          return d.Amount;
+        })
+      })
+      .entries(data);
+      console.log("total", total);
+
+ 
+   x.domain([2010, 2017]);
+
+   y.domain([0, 10000000000]);
+
+
+
+  svg.append("g")
+      .attr("class", "y axis")
+      .call(yAxis)
+    .append("text")
+      .attr("transform", "rotate(-90)")
+      .attr("y", 6)
+      .attr("dy", ".71em")
+      .style("text-anchor", "end")
+      .text("Amount of Revenue ");
+
+   svg.append("g")
+      .attr("class", "x axis")
+      .attr("transform", "translate(0," + height + ")")
+      .call(xAxis)
+    .append("text")
+      .attr("y", 30)
+      .attr("x", width/2)
+      .text("Years")
+    .selectAll("text")
+    .select(function() { return this.parentNode.appendChild(this.cloneNode(true)); });
+
+
+
+  var category = svg.selectAll(".category")
+      .data(total)
+    .enter().append("g")
+      .attr("class", "category");
+
+  category.append("path")
+      .attr("class", "line")
+      .attr("d", function(d) { return line(d.values); })
+      .style("stroke", function(d) { return color(d.key); });
+
+  for (i = 0; i < total.length; i++) {
+      var co = total[i].key;
+      svg.selectAll(".dot")
+          .data(total[i].values)
+      .enter().append("circle")
+          .attr("r", 2.5)
+          .attr("cx", function(d) {return x(+d.key); })
+          .attr("cy", function(d) {return y(d.values); })
+          .style("fill", function(d) { console.log("idk"); return color(co); });
+      if (i == 0 || i == 3) {
+        svg.selectAll(".txt")
+            .data(total[i].values)
+        .enter().append("text")
+            .attr("x", function(d) { return x(+d.key); })
+            .attr("y", function(d) { return y(d.values); })
+            .attr("dx", ".6em")
+            .attr("dy", "1.0em")
+            .text(function(d) { console.log(numForm(d.values)); return numForm(d.values);});
+      }
+    }
+
+
+    var legend = svg.selectAll(".legend")
+      //.data(color.domain().slice().reverse().slice(0,5))
+      .data(color.domain())
+    .enter().append("g")
+      .attr("class", "legend")
+      .attr("transform", function(d, i) { return "translate(0," + i * 20 + ")"; });
+
+  legend.append("rect")
+      .attr("x", width - 18)
+      .attr("y", 65)
+      .attr("width", 18)
+      .attr("height", 18)
+      .style("fill", color);
+
+  legend.append("text")
+      .attr("x", width - 24)
+      .attr("y", 76)
+      .attr("dy", ".20em")
+      .style("text-anchor", "end")
+      .text(function(d) { return d; });
+
+  console.log(total);
+
+
+ });
+
+</script>
+
+

@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<head>
+  <meta charset="utf-8">
+  <title>Heatmap</title>
+  <link href="style.css" rel="stylesheet" type="text/css">
+  <script src="https://d3js.org/d3.v3.min.js"></script>
+  <script src="colorbrewer.js"></script>
+  <script src="heatmap.js"></script>
+</head>
+<body>
+  <script>
+/* helper method to make translating easier */
+var translate = function(x, y) { return "translate(" + x + "," + y + ")"; };
+
+// container for configuration parameters
+var config = {};
+
+config.svg = { width: 960, height: 1000 };
+config.margin = { top: 150, right: 60, bottom: 30, left: 240 };
+
+config.plot = {
+  width: config.svg.width - config.margin.right - config.margin.left,
+  height: config.svg.height - config.margin.top - config.margin.bottom
+};
+config.legend = {
+  width: 100,
+  height: 15
+};
+
+// create svg based on config
+var svg = d3.select("body").append("svg")
+  .attr("width", config.svg.width)
+  .attr("height", config.svg.height);
+
+// create plot area based on config
+var plot = svg.append("g")
+  .attr("id", "plot")
+  .attr("transform", translate(config.margin.left, config.margin.top));
+
+var xScale = d3.scale.ordinal()
+  .rangeBands([0, config.plot.width], 0, 0);
+
+var yScale = d3.scale.ordinal()
+  .rangeBands([config.plot.height, 0], 0, 0);
+
+var colorScale = d3.scale.linear()
+  .range(colorbrewer.YlGnBu[3]);
+
+// placeholder for data
+var dataSet = [];
+
+d3.csv("data.csv", function(error, data) { // accessor 
+    if(error) throw error;
+
+    var temp = data.filter(function(d) {
+        return d["Revenue or Spending"] === "Revenue";
+    })
+
+    // temp= temp.filter(function(d){
+    //     return d["Amount"] >= 0;
+    // })
+
+    data = temp;
+
+    //Inflation Adjustment
+    data.forEach(function(d){
+      if(d["Fiscal Year"] === "2010"){
+        d["Amount"] = 1.09*d["Amount"];
+      }
+      if(d["Fiscal Year"] === "2011"){
+        d["Amount"] = 1.05*d["Amount"];
+      }
+      if(d["Fiscal Year"] === "2012"){
+        d["Amount"] = 1.03*d["Amount"];
+      }
+      if(d["Fiscal Year"] === "2013"){
+        d["Amount"] = 1.02*d["Amount"];
+      }
+      if(d["Fiscal Year"] === "2014"){
+        d["Amount"] = 1*d["Amount"];
+      }
+      if(d["Fiscal Year"] === "2015"){
+        d["Amount"] = 1*d["Amount"];
+      }
+    })
+
+    var group = d3.nest()
+      .key(function(d){ return d["Department"] })
+      .key(function(d){ return d["Fiscal Year"] })
+      .rollup(function(c){
+        return d3.sum(c, function(e){ 
+          return e.Amount; 
+        })
+      })
+      .map(data, d3.map);
+
+      dataSet = group;
+      data = group;
+
+     // console.log("group", group);
+
+  var department = data.keys();
+  // console.log("department", department);
+  var year = data.get(department[0]).keys();
+  // console.log("year", year);
+
+  xScale.domain(year);
+  yScale.domain(department);
+
+    /*
+     * how will we map our values to those colors?
+     * lets use the min, average, and max values as our "breaks"
+     * (this means our "middle" color might not be the "middle" value)
+     */
+
+    // our first step is to calculate the min, max, and average
+    // the issue now is our sums are nested
+
+    // un-nesting these values is a little strange looking
+    // debug each step in the console so you know what is going on
+
+    // this returns all the values in our map
+    // in this case, our values are themselves maps
+    var values = data.values();
+    // console.log("values: ", values);
+
+    // now we have an array of maps
+    // grab the map values for each inner map
+    values = values.map(function(d) { return d.values(); });
+    // console.log("values: ", values);
+
+    // now we have an array of arrays
+    // merge arrays into a single arrays
+    values = d3.merge(values);
+    // console.log("merge_values: ", values);
+
+    // now we can calculate the min, max, and average of our counts
+    var min = d3.min(values);
+    console.log("min", min);
+    var max = d3.max(values);
+    console.log("max", max);
+    var avg = d3.mean(values);
+    console.log("avg", avg);
+
+    // // use these values as domain for x, y, and color scales
+    colorScale.domain([min, avg, max]);
+
+    // // finally, draw stuff
+    drawBackground();
+    drawAxes();
+    drawHeatmap();
+    drawTitle();
+    drawLegend();
+});
+
+</script>
+</body>
+

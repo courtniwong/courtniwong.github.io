@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<meta charset="utf-8">
+<title>SF Budget Stacked Bar Chart</title>
+<style>
+  body {
+    font: 10px sans-serif;
+  }
+
+  .axis path,
+  .axis line {
+    fill: none;
+    stroke: #000;
+    shape-rendering: crispEdges;
+  }
+
+  .bar {
+    fill: steelblue;
+  }
+</style>
+<body>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/3.5.5/d3.min.js" type="text/javascript"></script>  
+  <h2><center>SF Budget Stacked Bar Chart</center></h2>
+
+  <script>
+
+    var margin = {top: 20, right: 20, bottom: 50, left:80},
+    width = 960 - margin.left - margin.right,
+    height = 500 - margin.top - margin.bottom;
+
+    var x = d3.scale.linear().rangeRound([0,width]);
+
+    var y = d3.scale.ordinal().rangeRoundBands([height,0],.1);
+
+    var color = d3.scale.ordinal()
+    .range(["#98abc5", "#8a89a6", "#7b6888", "#6b486b", "#a05d56", "#d0743c", "#ff8c00"]);
+      // var color = d3.scale.ordinal()
+      // .range(["#808080"]);
+
+      var xAxis = d3.svg.axis()
+      .scale(x)
+      .orient("bottom")
+      // .tickFormat(d3.format(".3s"));
+
+      var yAxis = d3.svg.axis()
+      .scale(y)
+      .orient("left");
+
+      // console.log(yAxis.scale());
+
+      var svg = d3.select("body").append("svg")
+      .attr("width", width + margin.left + margin.right)
+      .attr("height", height + margin.top + margin.bottom)
+      .append("g")
+      .attr("transform", "translate(" + margin.left + "," + margin.top + ")");
+
+      d3.csv("data.csv", function(error,data){
+        if (error) throw error;
+
+        var temp=data.filter(function(d){
+          return d["Fund Category"]!==""
+        })
+        temp=temp.filter(function(d){
+          return d["Revenue or Spending"]==="Spending" 
+        })
+        // console.log("temp", temp);
+
+        data=temp;
+        console.log("data",data);
+
+        data.forEach(function(d){
+          if(d["Fiscal Year"] === "2010"){
+            d["Amount"] = 1.09*d["Amount"];
+          }
+          if(d["Fiscal Year"] === "2011"){
+            d["Amount"] = 1.05*d["Amount"];
+          }
+          if(d["Fiscal Year"] === "2012"){
+            d["Amount"] = 1.03*d["Amount"];
+          }
+          if(d["Fiscal Year"] === "2013"){
+            d["Amount"] = 1.02*d["Amount"];
+          }
+          if(d["Fiscal Year"] === "2014"){
+            d["Amount"] = 1*d["Amount"];
+          }
+          if(d["Fiscal Year"] === "2015"){
+            d["Amount"] = 1*d["Amount"];
+          }
+        })
+
+
+        var group = d3.nest()
+        .key(function(d){return d["Fiscal Year"]})
+        .key(function(d){ return d["Organization Group"] })
+        .rollup(function(c){
+          return d3.sum(c, function(e){ 
+            return e.Amount; 
+          })
+        })
+        // .key(function(d){ return d["Organization Group"] })
+        .map(data, d3.map);
+
+        console.log("group", group)
+        // console.log("data", data);
+
+        // data=group;
+
+        // console.log("keys", group.keys());
+
+
+        color.domain(data.map(function(d){
+          // console.log("d",d["Organization Group"]);
+          return d["Organization Group"]
+        }));
+        console.log("color domain: ", color.domain());
+        console.log("color", color("General Administration & Finance"))
+
+
+        // console.log("after group", group)
+
+
+        var totalAmountByYear = d3.nest()
+        .key(function(d){return d["Fiscal Year"]})
+        .rollup(function(c){
+          return d3.sum(c,function(e){return e.Amount;})
+        })
+        .entries(data);
+        console.log("totalAmountByYear", totalAmountByYear)
+
+        var year = group.keys();
+        // console.log("year", year);
+
+        var organizationgroup = group.get(year[0]).keys();
+        console.log("organizationgroup", organizationgroup);
+
+        totalAmountByYear.forEach(function(d) {
+          console.log("d",d.key);
+          var y0 = 0;
+          d.ages = color.domain().map(function(name) { 
+
+            console.log("name",name);
+            
+            console.log("group.key",group.get(d.key).get(name))
+            return {name: name, y0: y0, y1: y0 += +group.get(d.key).get(name) };});
+          // d.total = d.ages[d.ages.length - 1].y1;
+        });
+        console.log("totalAmountByYear",totalAmountByYear)
+
+        // totalAmountByYear.sort(function(a, b) { return a.total - b.total; });
+
+        y.domain(year);
+        // x.domain(d3.extent(totalAmountByYear,function(d){return d.values}));
+        x.domain([0, d3.max(totalAmountByYear, function(d) {return d.values; })]);
+        // console.log(x.domain());
+
+        svg.append("g")
+        .attr("class", "x axis")
+        .attr("transform", "translate(0," + height + ")")
+        .call(xAxis)
+        .append("text")
+        .attr("x", width/2)
+        .attr("y", 25)
+        .text("Amount");
+
+        svg.append("g")
+        .attr("class", "y axis")
+        .call(yAxis)
+        .append("text")
+        .attr("x", -30)
+        .attr("y", -6)
+        .text("Year");
+
+        var district = svg.selectAll(".district")
+        .data(totalAmountByYear)
+        .enter().append("g")
+        .attr("class", "g")
+        .attr("transform", function(d) { return "translate(0, " + y(d.key) + ")"; });
+
+        // console.log("color", color("Culture & Recreation"))
+
+        district.selectAll("rect")
+        .data(function(d) {
+          // console.log("d", d);
+          return d.ages;
+        })
+        .enter().append("rect")
+        .attr("width", function(d){
+          // console.log("wtf");
+          // console.log( x(d.y1)- x(d.y0))
+          return (x(d.y1)- x(d.y0));})
+        .attr("x", function(d) { 
+          return x(d.y0);
+          // return 0;
+        })
+        .attr("height", y.rangeBand())
+        .style("fill", function(d) { 
+          // console.log("d", d.name);
+          // console.log("color", color(d.name))
+          return color(d.name); 
+        });
+
+        console.log("color*****", color("General City Responsibilities"))
+
+        var legend = svg.selectAll(".legend")
+        .data(color.domain().slice().reverse())
+        .enter().append("g")
+        .attr("class", "legend")
+        .attr("transform", function(d, i) { return "translate(0," + i * 20 + ")"; });
+
+        legend.append("rect")
+        .attr("x", width - 18)
+        .attr("y", 280)
+        .attr("width", 18)
+        .attr("height", 18)
+        .style("fill", color);
+
+        legend.append("text")
+        .attr("x", width - 24)
+        .attr("y", 290)
+        .attr("dy", ".35em")
+        .style("text-anchor", "end")
+        .text(function(d) { return d; });
+
+      });
+
+    </script>
+
+</body>

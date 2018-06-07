@@ -1,1 +1,2 @@
-# courtniwong.github.io
+# midterm-kettle-chips
+Midterm Group: Kettle Chips

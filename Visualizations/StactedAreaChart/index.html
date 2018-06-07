@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<meta charset="utf-8">
+<title>Stacked Area Chart</title>
+<style>
+  body {
+    font: 10px sans-serif;
+  }
+
+  .axis path,
+  .axis line {
+    fill: none;
+    /*stroke: #000;*/
+    shape-rendering: crispEdges;
+    /*shape-rendering: auto;*/
+    /*shape-rendering: geometricPrecision;*/
+  }
+
+  .browser text {
+    text-anchor: end;
+  }
+
+  .area{
+    fill: steelblue;
+    stroke: #000;
+  }
+
+  /*svg{
+    fill: whitesmoke;
+  }
+
+  .axis text{
+    fill: #a9a9a9;
+  }*/
+
+  path{
+    fill: steelblue;
+    stroke: #000;
+  }
+  .path{
+    fill: steelblue;
+    stroke: #000;
+  }
+
+  h1{
+    padding-left: 160px;
+  }
+</style>
+
+<body>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/3.5.5/d3.min.js" type="text/javascript"></script>
+  <script src="colorbrewer.js"></script>
+
+  <script type="text/javascript">
+    var margin = {top: 20, right: 50, bottom: 30, left: 50},
+    width = 960 - margin.left - margin.right,
+    height = 500 - margin.top - margin.bottom;
+
+    var x = d3.scale.linear().range([0,width]);
+
+    var y = d3.scale.linear().range([height, 0]);
+
+    var color = d3.scale.category20();
+    // var color = d3.scale.ordinal().range(['#ffffcc','#a1dab4','#41b6c4','#2c7fb8','#253494']);
+
+
+    formatPercent = d3.format(".0%");
+
+    var xAxis = d3.svg.axis()
+    .scale(x)
+    .orient("bottom")
+    .tickFormat(d3.format("d"));
+
+    var yAxis = d3.svg.axis()
+    .scale(y)
+    .orient("left")
+    .tickFormat(formatPercent);
+
+    var area = d3.svg.area()
+    .x(function(d) { 
+      // console.log("x",d.key);
+      return x(d.key); 
+    })
+    .y0(function(d){
+      // console.log("y0",d.y0);
+      return y(d.y0);
+    })
+    .y1(function(d) { 
+      // console.log("y1", d.y0+d.y)
+      return y(d.y0 +d.y);
+    });
+
+    var stack =d3.layout.stack()
+    .values(function(d){
+      // console.log("values", d.values);
+      return d.values;
+    })
+    // .x(function(d){
+    //   // console.log("x", d.key);
+    //   return d.key;
+    // })
+    .y(function(d){
+      // console.log("y",d.values);
+      return d.values;
+    })
+
+    var svg = d3.select("body").append("svg")
+    .attr("width", width + margin.left + margin.right)
+    .attr("height", height + margin.top + margin.bottom)
+    .append("g")
+    .attr("transform", "translate(" + margin.left + "," + margin.top + ")");
+
+    d3.csv("data.csv",function(error, data){
+      if(error) throw error;
+      var temp= data.filter(function(d){
+        return d["Fund Category"]!==""
+      })
+
+      temp= temp.filter(function(d){
+        return d["Revenue or Spending"]==="Spending"
+      })
+
+      temp= temp.filter(function(d){
+        return d["Amount"]>=0;
+      })
+
+      // console.log("temp",temp);
+
+      data=temp;
+      data.forEach(function(d){
+        // console.log("d",d);
+        if(d["Fiscal Year"]==="2010"){
+          // d["Amount"]=0;
+          d["Amount"]= 1.09*d["Amount"];
+        }
+        if(d["Fiscal Year"]==="2011"){
+          // d["Amount"]=0;
+          d["Amount"]= 1.05*d["Amount"];
+        }
+        if(d["Fiscal Year"]==="2012"){
+          // d["Amount"]=0;
+          d["Amount"]= 1.03*d["Amount"];
+        }
+        if(d["Fiscal Year"]==="2013"){
+          // d["Amount"]=0;
+          d["Amount"]= 1.02*d["Amount"];
+        }
+        if(d["Fiscal Year"]==="2014"){
+          // d["Amount"]=0;
+          d["Amount"]= 1*d["Amount"];
+        }
+        if(d["Fiscal Year"]==="2015"){
+          // d["Amount"]=0;
+          d["Amount"]= 1*d["Amount"];
+        }
+      })
+      // console.log("data", data);
+
+      var temp= d3.map(data, function(d){
+        // console.log("Category",d["Fund Category"])
+        return d["Fund Category"];
+      })
+      // console.log("temp", temp);
+      var e= temp.keys()
+      color.domain(e);
+      // console.log("color domain", color.domain())
+      var getColor=function(fundCategory){
+        if(fundCategory==="Operating"){
+          return "#1f77b4";
+        }
+        if(fundCategory==="Continuing Projects"){
+          return "#ffbb78";
+        }
+        if(fundCategory==="Work Orders/Overhead"){
+          return "#2ca02c";
+        }
+        if(fundCategory==="Grants"){
+          return "#ff7f0e"
+        }
+        if(fundCategory==="Annual Projects"){
+          return "#aec7e8";
+        }
+      }
+      // console.log("getColor", getColor("Annual Projects"))
+
+      var totalAmountByYear= d3.nest()
+      .key(function(d){return d["Fiscal Year"]})
+      .rollup(function(c){
+        return d3.sum(c,function(e){return e.Amount;})
+      })
+      .entries(data);
+      // console.log("totalAmountByYear", totalAmountByYear)
+
+      var getValue= function(year){
+        for(var i=0;i<totalAmountByYear.length;i++){
+          if(totalAmountByYear[i].key.toString()===year.toString()){
+            return totalAmountByYear[i].values;
+          }
+        }
+      }
+      var year;
+
+      var funds= d3.nest()
+      .key(function(d){return d["Fund Category"]})
+      .key(function(d){return d["Fiscal Year"]})
+      .rollup(function(c){
+        var sum = d3.sum(c,function(e){
+          year= e["Fiscal Year"]
+          return e.Amount;
+        })
+        var denominator= getValue(year);
+        return sum/denominator
+      })
+      .entries(data);
+
+      // console.log("funds", funds);
+
+      function sort_fundsByfundCategory(funds){
+        return funds.sort(function(a,b){
+          // console.log("a",a);
+          var aSum=0;
+          a.values.forEach(function(d){
+            // console.log("wtf",d.values);
+            aSum=d.values+ aSum;
+          })
+          // console.log("aSum", aSum);
+          var bSum=0;
+          b.values.forEach(function(d){
+            // console.log("")
+            bSum=d.values+bSum;
+          })
+          // console.log("b",b);
+          return bSum-aSum;
+        })
+      }
+
+      var temp2= sort_fundsByfundCategory(funds);
+      // console.log("sorted ", temp2);
+      funds= temp2;
+
+      var layers= stack(funds);
+      // console.log("layers", layers);
+
+      x.domain(d3.extent(data,function(d){
+        // console.log("d",d["Fiscal Year"])
+        return d["Fiscal Year"];
+      }));
+      // console.log("x domain", x.domain());
+
+      svg.selectAll(".layer")
+      .data(layers)
+      .enter().append("path")
+      .attr("class","layer")
+      .attr("d",function(d){
+        // console.log("d", d.values)
+        return area(d.values);
+      })
+      .style("fill", function(d){
+        // console.log("d", d.key);
+        // console.log("color", color(d.key))
+        // if(d.key===)
+        return getColor(d.key);
+        // return color(d.key);
+      })
+
+      // console.log("funds", funds);
+
+      var point =svg.selectAll(".point")
+      .data(funds)
+      .enter().append("g")
+      .attr("class", "point");
+
+      var points=point.append("g")
+      .attr("class", "line-point");
+      
+      points.selectAll('circle')
+      .data(function(d){
+        // console.log("d",d.values);
+        return d.values})
+      .enter().append('circle')
+      .attr("cx",function(d){return x(d.key)})
+      .attr("cy",function(d){return y(d.values+d.y0)})
+      .attr("r",2)
+      .style("stroke",function(d){return color(this.parentNode.__data__.key)})
+
+      var textFormat=d3.format(".1%");
+
+      funds[0].values.forEach(function(e){
+        // console.log(e);
+        svg.append("text")
+        .attr("x", x(e.key)+5)
+        .attr("y", y(e.values+e.y0)+10)
+        .text(function(){return textFormat(d3.round(e.values+e.y0,3))})
+      })
+
+      funds[1].values.forEach(function(e){
+        // console.log(e);
+        svg.append("text")
+        .attr("x", x(e.key)+5)
+        .attr("y", y(e.values+e.y0)+10)
+        .text(function(){return textFormat(d3.round(e.values+e.y0,3))})
+      })
+
+      funds[2].values.forEach(function(e){
+        // console.log(e);
+        svg.append("text")
+        .attr("x", x(e.key)+5)
+        .attr("y", y(e.values+e.y0)+10)
+        .text(function(){return textFormat(d3.round(e.values+e.y0,3))})
+      })
+
+      svg.append("g")
+      .attr("class", "x axis")
+      .attr("transform", "translate(0," + height + ")")
+      .call(xAxis);
+
+      svg.append("g")
+      .attr("class", "y axis")
+      .call(yAxis);
+
+      var rectangle=svg.append("rect")
+      .attr("x",70)
+      .attr("y",260)
+      .attr("width", 200)
+      .attr("height", 120)
+      .attr("fill", "white")
+      .style("opacity",0.75)
+
+      var legend= svg.selectAll(".legend")
+      .data(color.domain())
+      .enter().append("g")
+      .attr("class", "legend")
+      .attr("transform", function(d, i) { return "translate(0," + i * 20 + ")"; });
+
+      legend.append("rect")
+      .attr("x", 200)
+      .attr("y", 270)
+      .attr("width", 60)
+      .attr("height", 18)
+      .style("fill", function(d){
+        // console.log(d);
+        return getColor(d);
+        // return color(d);
+      })
+      .style("opacity");
+
+      legend.append("text")
+      .attr("x", 190)
+      .attr("y", 275)
+      .attr("dy", ".35em")
+      .style("text-anchor", "end")
+      .text(function(d) { 
+        // console.log("d text",d);
+        return d;
+      });
+
+    });
+  </script>
+  <h1>2010-2017 Fund Categoery Stacked Area Chart (Spending)</h1>
+  <h2>Note: Negative Spendings are filtered out.</h2>
+  <h2>Note: The inflation of the amount of the money are adjusted to 2016.<p> (Data from this link: <a href="http://data.bls.gov/cgi-bin/cpicalc.pl">BUREAU OF LABOR STATISTICS</a>)<p></h2>
+  <h2>Interesting fact: Fund Category, Operation costs the most.</h2>
+
+</body>
